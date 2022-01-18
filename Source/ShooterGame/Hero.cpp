@@ -5,7 +5,10 @@
 
 #include "DrawDebugHelpers.h"
 #include "Enemy.h"
+#include "SAWidget.h"
 #include "Components/CapsuleComponent.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "Kismet/GameplayStatics.h"
 
 
 // Sets default values
@@ -21,14 +24,19 @@ AHero::AHero()
 	CameraComponent = CreateDefaultSubobject<UCameraComponent>("Camera");
 	CameraComponent->SetupAttachment(SpringArmComponent, USpringArmComponent::SocketName);
 
+
+	HP = 100;
 	Coins = 0;
 	Caps = 0;
+	RightClickment = false;
 }
 
 // Called when the game starts or when spawned
 void AHero::BeginPlay()
 {
 	Super::BeginPlay();
+
+	GameHUD = Cast<AGameHUD>(UGameplayStatics::GetPlayerController(this->GetOwner(), 0)->GetHUD());
 
 	// Kontrola kolize CapsuleComponent
 	GetCapsuleComponent()->OnComponentBeginOverlap.AddDynamic(this, &AHero::OnCollide);
@@ -39,13 +47,26 @@ void AHero::BeginPlay()
 void AHero::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-	GEngine->AddOnScreenDebugMessage(-1, 0.f, FColor::Yellow, FString::Printf(TEXT("Coins: %i"), Coins), true);
-	GEngine->AddOnScreenDebugMessage(-1, 0.f, FColor::Red, FString::Printf(TEXT("Caps: %i"), Caps), true);
+	//GEngine->AddOnScreenDebugMessage(-1, 0.f, FColor::Yellow, FString::Printf(TEXT("Coins: %i"), Coins), true);
+	//GEngine->AddOnScreenDebugMessage(-1, 0.f, FColor::Red, FString::Printf(TEXT("Caps: %i"), Caps), true);
+
+	if (RightClickment)
+	{
+		RightClick();
+	}
+	
+	if (IsValid(GameHUD))
+	{
+		//!!!!!! NEVIM JINAK :DDDD !!!!!!!
+		GameHUD->InGameWidget->SetHP(HP);
+	}
+	
+	IsDead();
 
 	FVector Location = GetActorLocation() + (CameraComponent->GetForwardVector() * 20);
 	FVector ForwardVector = GetActorLocation() + (CameraComponent->GetForwardVector() * 10000);
 
-	
+
 	FHitResult HitResult;
 	if (GetWorld()->LineTraceSingleByChannel(
 		HitResult, Location,
@@ -81,7 +102,12 @@ void AHero::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 
 	PlayerInputComponent->BindAction("Jump", IE_Pressed, this, &ACharacter::Jump);
 	PlayerInputComponent->BindAction("Jump", IE_Released, this, &ACharacter::StopJumping);
-	PlayerInputComponent->BindAction("Shoot", IE_Pressed, this, &AHero::Shoot);
+	PlayerInputComponent->BindAction("LeftClick", IE_Pressed, this, &AHero::LeftClick);
+	PlayerInputComponent->BindAction("RightClick", IE_Pressed, this, &AHero::RightClick);
+	PlayerInputComponent->BindAction("RightClick", IE_Released, this, &AHero::StopRightClick);
+
+
+	PlayerInputComponent->BindAction("Interact", IE_Pressed, this, &AHero::Interact);
 }
 
 void AHero::MoveForward(float Scale)
@@ -127,16 +153,13 @@ void AHero::OnStopCollision(UPrimitiveComponent* OverlappedComp, class AActor* O
 	// UE_LOG(LogTemp, Warning, TEXT("Collision stopped with: %s"), *OtherActor->GetFullName());
 }
 
-void AHero::Shoot()
+void AHero::LeftClick()
 {
 	FVector Location = GetActorLocation() + (CameraComponent->GetForwardVector() * 20);
 	FVector ForwardVector = GetActorLocation() + (CameraComponent->GetForwardVector() * 10000);
 
 	FHitResult HitResult;
-	if (GetWorld()->LineTraceSingleByChannel(
-		HitResult, Location,
-		ForwardVector, ECC_LookAt
-	))
+	if (GetWorld()->LineTraceSingleByChannel(HitResult, Location, ForwardVector, ECC_LookAt))
 	{
 		if (HitResult.Actor.IsValid())
 		{
@@ -149,27 +172,89 @@ void AHero::Shoot()
 
 	if (!HitResult.Location.IsZero() && HitResult.Actor.IsValid())
 	{
-		DrawDebugBox(GetWorld(), HitResult.ImpactPoint, FVector(4,4,4), FColor::Red, false, 1, 0, 1);
+		DrawDebugBox(GetWorld(), HitResult.ImpactPoint, FVector(4, 4, 4), FColor::Red, false, 1, 0, 1);
 		DrawDebugLine(GetWorld(), Location, HitResult.Location, FColor::Red, false, 1, 0, 1);
 
 		if (HitResult.Actor->GetName().ToLower().Contains("friend"))
 		{
 			AEnemy* Enemy = Cast<AEnemy>(HitResult.GetActor());
-			FVector Direction = (HitResult.GetActor()->GetActorLocation()) - HitResult.Location;
-			Enemy->StaticMeshComponent->AddImpulse(Direction*10,NAME_None,true);
-			GEngine->AddOnScreenDebugMessage(-1, 1.f, FColor::Cyan, FString::Printf(TEXT("Why would you shoot friend :(")), false);
+			FVector Direction = (HitResult.GetActor()->GetActorLocation()) - HitResult.ImpactPoint;
+			Enemy->StaticMeshComponent->AddImpulse(Direction * 10, NAME_None, true);
+			GEngine->AddOnScreenDebugMessage(-1, 1.f, FColor::Cyan,
+			                                 FString::Printf(TEXT("Why would you shoot friend :(")), false);
+			HP -= 5;
+			LaunchCharacter(ForwardVector, false, false);
+		}
+
+		if (HitResult.Actor->GetName().ToLower().Contains("hurtboard"))
+		{
+			HP -= 5;
+			LaunchCharacter(ForwardVector*-0.05, true, true);
 		}
 		
 		if (HitResult.Actor->GetName().ToLower().Contains("enemy"))
 		{
 			AEnemy* Enemy = Cast<AEnemy>(HitResult.GetActor());
-			FVector Direction = (HitResult.GetActor()->GetActorLocation()) - HitResult.Location;
-			Enemy->StaticMeshComponent->AddImpulse(Direction*10,NAME_None,true);
+			FVector Direction = (HitResult.GetActor()->GetActorLocation()) - HitResult.ImpactPoint;
+			Enemy->StaticMeshComponent->AddImpulse(Direction * 10, NAME_None, true);
 			Enemy->HP -= 25;
-			GEngine->AddOnScreenDebugMessage(-1, 1.f, FColor::Green, FString::Printf(TEXT("Target HP: %i"), Enemy->HP), false);
+			GEngine->AddOnScreenDebugMessage(-1, 1.f, FColor::Green, FString::Printf(TEXT("Target HP: %i"), Enemy->HP),
+			                                 false);
 			Enemy->IsDead();
 		}
 	}
+}
 
-	
+void AHero::RightClick()
+{
+	FVector Location = GetActorLocation() + (CameraComponent->GetForwardVector() * 20);
+	FVector ForwardVector = GetActorLocation() + (CameraComponent->GetForwardVector() * 10000);
+
+	FHitResult HitResult;
+	GetWorld()->LineTraceSingleByChannel(HitResult, Location, ForwardVector, ECC_LookAt);
+
+	UE_LOG(LogTemp, Warning, TEXT("Hooked!"));
+
+	if (!HitResult.Location.IsZero() && HitResult.Actor.IsValid())
+	{
+		if (HitResult.Actor->GetName().ToLower().Contains("hook"))
+		{
+			if (RightClickment == false)
+			{
+				HookStart = Location;
+				HookEnd = HitResult.ImpactPoint;
+				//DrawDebugSphere(GetWorld(), HitResult.ImpactPoint, 8, 10,FColor::Blue, false, 1, 0, 1);
+				//DrawDebugLine(GetWorld(), Location, HitResult.Location, FColor::Blue, false, 1, 0, 1);
+			}
+			RightClickment = true;
+			DrawDebugSphere(GetWorld(), HookEnd, 8, 10,FColor::Blue, false, 0.1, 0, 1);
+			DrawDebugLine(GetWorld(), Location, HookEnd, FColor::Blue, false, 0.1, 1, 1);
+			LaunchCharacter(ForwardVector * 0.08, true, true);
+			
+		}
+		if (!HitResult.Actor->GetName().ToLower().Contains("hook"))
+		{
+		RightClickment = false;
+		}
+	}
+}
+
+void AHero::StopRightClick()
+{
+	RightClickment = false;
+}
+
+
+void AHero::Interact()
+{
+	FString InteractedWith = "WIP";
+	UE_LOG(LogTemp, Warning, TEXT("SHOT: %s"), *InteractedWith);
+}
+
+void AHero::IsDead()
+{
+	if (HP <= 0)
+	{
+		Destroy();
+	}
 }

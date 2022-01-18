@@ -16,7 +16,9 @@ public:
 	UPROPERTY(EditAnywhere)
 	UStaticMeshComponent* StaticMeshComponent;
 
+	UPROPERTY(EditAnywhere)
 	int32 HP;
+	
 	// Sets default values for this actor's properties
 	AEnemy();
 
@@ -27,5 +29,7 @@ protected:
 public:	
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
+
+	UFUNCTION()
 	void IsDead();
 };

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "GameHUD.h"
 #include "Camera/CameraComponent.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/SpringArmComponent.h"
@@ -15,6 +16,9 @@ class SHOOTERGAME_API AHero : public ACharacter
 {
 	GENERATED_BODY()
 
+	UPROPERTY()
+	AGameHUD* GameHUD;
+
 public:
 	UPROPERTY(EditAnywhere)
 	UCameraComponent* CameraComponent;
@@ -22,9 +26,21 @@ public:
 	UPROPERTY(EditAnywhere)
 	USpringArmComponent* SpringArmComponent;
 
-
+	UPROPERTY(BlueprintReadOnly)
 	int32 Coins;
+
+	UPROPERTY(BlueprintReadOnly)
 	int32 Caps;
+
+	UPROPERTY(BlueprintReadWrite)
+	float HP;
+
+
+	// Hook vars
+	FVector HookStart;
+	FVector HookEnd;
+	bool RightClickment;
+
 	// Sets default values for this character's properties
 	AHero();
 
@@ -38,14 +54,20 @@ public:
 
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
-
-	void MoveForward(float Scale);
-	void MoveSideways(float Scale);
-
+	
 	UFUNCTION()
 	void OnCollide(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
 
 	UFUNCTION()
 	void OnStopCollision(UPrimitiveComponent* OverlappedComp, class AActor* OtherActor, class UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
-	void Shoot();
+
+	void MoveForward(float Scale);
+	void MoveSideways(float Scale);
+	
+	void LeftClick();
+	void RightClick();
+	void StopRightClick();
+	void Interact();
+	
+	void IsDead();
 };

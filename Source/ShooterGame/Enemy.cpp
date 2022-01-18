@@ -2,7 +2,6 @@
 
 
 #include "Enemy.h"
-#include "Components/CapsuleComponent.h"
 
 // Sets default values
 AEnemy::AEnemy()
