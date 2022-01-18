@@ -1,3 +1,2 @@
 # ShooterGame
-my epic fps game
-UGLY SLATE
+my epic fps game but with UGLY SLATE
